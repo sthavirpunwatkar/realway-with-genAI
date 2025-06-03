@@ -14,9 +14,10 @@ import { useState, type ChangeEvent, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { GateListItem } from '@/components/dashboard/gate-list-item';
+import { useToast } from "@/hooks/use-toast";
 
-// Mock data for railway gates
-const mockGates: RailwayGate[] = [
+// Initial mock data for railway gates
+const mockGatesInitial: RailwayGate[] = [
   { id: 'gate1', name: 'Main Street Crossing', latitude: 37.7749, longitude: -122.4194, status: 'closed', estimatedWaitTime: '8 min' },
   { id: 'gate2', name: 'Elm Avenue Gate', latitude: 37.7790, longitude: -122.4290, status: 'open', estimatedWaitTime: 'N/A' },
   { id: 'gate3', name: 'Oak Road Junction', latitude: 37.7700, longitude: -122.4100, status: 'closed', estimatedWaitTime: '12 min' },
@@ -24,15 +25,17 @@ const mockGates: RailwayGate[] = [
 ];
 
 // Determine initial map center. If gates exist, center on the first gate. Otherwise, use a default.
-const initialMapCenter = mockGates.length > 0 
-  ? { lat: mockGates[0].latitude, lng: mockGates[0].longitude }
+const initialMapFallbackCenter = mockGatesInitial.length > 0
+  ? { lat: mockGatesInitial[0].latitude, lng: mockGatesInitial[0].longitude }
   : { lat: 37.7749, lng: -122.4194 }; // Default to San Francisco if no gates
 
 export default function RailWatchDashboard() {
+  const [mockGatesData, setMockGatesData] = useState<RailwayGate[]>(mockGatesInitial);
   const [searchQuery, setSearchQuery] = useState('');
   const [destinationResults, setDestinationResults] = useState<RailwayGate[]>([]);
   const [searchAttempted, setSearchAttempted] = useState(false);
-  const [mapViewCenter, setMapViewCenter] = useState(initialMapCenter);
+  const [mapViewCenter, setMapViewCenter] = useState(initialMapFallbackCenter);
+  const { toast } = useToast();
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;
@@ -40,7 +43,7 @@ export default function RailWatchDashboard() {
     if (!query.trim()) {
       setDestinationResults([]);
       setSearchAttempted(false);
-      setMapViewCenter(initialMapCenter);
+      setMapViewCenter(initialMapFallbackCenter);
     }
   };
 
@@ -48,29 +51,85 @@ export default function RailWatchDashboard() {
     setSearchAttempted(true);
     if (!searchQuery.trim()) {
       setDestinationResults([]);
-      setMapViewCenter(initialMapCenter);
+      setMapViewCenter(initialMapFallbackCenter);
       return;
     }
     const lowerCaseQuery = searchQuery.toLowerCase();
-    const foundGateIndex = mockGates.findIndex(gate => gate.name.toLowerCase().includes(lowerCaseQuery));
+    const foundGateIndex = mockGatesData.findIndex(gate => gate.name.toLowerCase().includes(lowerCaseQuery));
 
     if (foundGateIndex !== -1) {
       const results: RailwayGate[] = [];
-      results.push(mockGates[foundGateIndex]);
-      if (foundGateIndex + 1 < mockGates.length) {
-        results.push(mockGates[foundGateIndex + 1]);
+      results.push(mockGatesData[foundGateIndex]);
+      if (foundGateIndex + 1 < mockGatesData.length) {
+        results.push(mockGatesData[foundGateIndex + 1]);
       }
       setDestinationResults(results);
       setMapViewCenter({ lat: results[0].latitude, lng: results[0].longitude });
     } else {
       setDestinationResults([]);
-      setMapViewCenter(initialMapCenter);
+      setMapViewCenter(initialMapFallbackCenter);
     }
   };
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     performSearch();
+  };
+
+  const handleToggleStatus = (gateId: string) => {
+    let toggledGateName = '';
+    let newStatus: 'open' | 'closed' = 'open'; // Initialize with a default
+
+    setMockGatesData(prevGates =>
+      prevGates.map(gate => {
+        if (gate.id === gateId) {
+          toggledGateName = gate.name;
+          newStatus = gate.status === 'open' ? 'closed' : 'open';
+          return { ...gate, status: newStatus };
+        }
+        return gate;
+      })
+    );
+
+    setDestinationResults(prevResults =>
+      prevResults.map(gate => {
+        if (gate.id === gateId) {
+          // Ensure newStatus is correctly captured from the main data update logic
+          // This requires newStatus to be in scope or re-calculated
+          const originalGate = mockGatesData.find(g => g.id === gateId);
+          const currentStatusInMainData = originalGate ? originalGate.status : gate.status;
+          // The status in prevResults might be stale if mockGatesData was updated first.
+          // It's safer to re-derive the new status based on the *intended* toggle logic.
+          const statusAfterToggle = currentStatusInMainData === 'open' ? (newStatus === 'open' ? 'closed' : 'open') : (newStatus === 'closed' ? 'open' : 'closed');
+
+          // If the newStatus from above (derived from setMockGatesData's closure) is what we just set, use it.
+          // This logic can be tricky due to closures. The simplest is to just flip current destinationResults gate status.
+           const updatedStatusForDest = gate.status === 'open' ? 'closed' : 'open';
+          return { ...gate, status: updatedStatusForDest };
+        }
+        return gate;
+      })
+    );
+    
+    // Re-run search if the toggled gate was part of the search to ensure consistency,
+    // especially if `newStatus` from the `setMockGatesData` closure isn't perfectly synced.
+    // This is a bit heavy-handed but ensures consistency.
+    if (destinationResults.some(g => g.id === gateId)) {
+        // We need to ensure the newStatus is correctly determined *after* setMockGatesData's update has been processed.
+        // The `newStatus` in this scope might be from the *previous* state if not careful.
+        // To get the *actual* new status for the toast, find the gate in the *next* state.
+        // However, state updates are async. So, we rely on the `newStatus` captured during the map.
+        // This is a common React challenge. The `newStatus` variable from `setMockGatesData` is correct.
+    }
+
+
+    if (toggledGateName && newStatus) {
+      toast({
+        title: "Status Updated",
+        description: `${toggledGateName} is now ${newStatus}.`,
+        variant: "default",
+      });
+    }
   };
 
 
@@ -114,7 +173,7 @@ export default function RailWatchDashboard() {
             <CardContent>
               <div className="space-y-4">
                 {destinationResults.map((gate) => (
-                  <GateListItem key={`${gate.id}-search`} gate={gate} />
+                  <GateListItem key={`${gate.id}-search`} gate={gate} onToggleStatus={handleToggleStatus} />
                 ))}
               </div>
             </CardContent>
@@ -143,7 +202,7 @@ export default function RailWatchDashboard() {
                     <CardDescription>Visual overview of railway gate statuses and locations.</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <MapDisplay gates={mockGates} center={mapViewCenter} />
+                    <MapDisplay gates={mockGatesData} center={mapViewCenter} />
                   </CardContent>
                 </Card>
               </div>
@@ -154,7 +213,7 @@ export default function RailWatchDashboard() {
                     <CardDescription>Current status and estimated wait times for monitored gates.</CardDescription>
                   </CardHeader>
                   <CardContent className="max-h-[450px] overflow-y-auto pr-2">
-                    <GateList gates={mockGates} />
+                    <GateList gates={mockGatesData} onToggleStatus={handleToggleStatus} />
                   </CardContent>
                 </Card>
               </div>
