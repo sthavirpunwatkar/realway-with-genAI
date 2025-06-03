@@ -9,16 +9,16 @@ import { predictWaitTime, type PredictWaitTimeInput, type PredictWaitTimeOutput 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+// Label component is not directly used, FormLabel is used instead.
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 // Schema for the user-fillable form fields
+// Removed trainSchedule as it's now fetched by an AI tool
 const formSchema = z.object({
   crossingId: z.string().min(1, "Crossing ID is required"),
-  trainSchedule: z.string().min(1, "Train schedule is required"),
   historicalTrafficData: z.string().min(1, "Historical traffic data is required"),
 });
 
@@ -34,7 +34,6 @@ export function AiWaitTimePredictor() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       crossingId: "",
-      trainSchedule: "",
       historicalTrafficData: "",
     },
   });
@@ -49,7 +48,8 @@ export function AiWaitTimePredictor() {
     const currentTimeOfDay = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
     const predictionInput: PredictWaitTimeInput = {
-      ...data,
+      crossingId: data.crossingId,
+      historicalTrafficData: data.historicalTrafficData,
       currentDayOfWeek,
       currentTimeOfDay,
     };
@@ -80,7 +80,7 @@ export function AiWaitTimePredictor() {
       <CardHeader>
         <CardTitle className="font-headline">AI Wait Time Predictor</CardTitle>
         <CardDescription>
-          Enter railway crossing details, and the AI will use current time and day context to estimate wait time.
+          Enter railway crossing details. The AI will fetch the train schedule from the database and use current time/day context to estimate wait time.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -99,19 +99,7 @@ export function AiWaitTimePredictor() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="trainSchedule"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Train Schedule</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Enter upcoming train schedule (e.g., 'Express train at 10:30 AM, Local at 11:15 AM')" {...field} rows={4} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Train Schedule Textarea removed */}
             <FormField
               control={form.control}
               name="historicalTrafficData"
