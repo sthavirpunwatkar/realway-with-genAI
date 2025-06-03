@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { RailwayGate } from '@/types';
@@ -7,26 +8,32 @@ import { useEffect, useState } from 'react';
 
 interface MapDisplayProps {
   gates: RailwayGate[];
-  defaultCenter?: { lat: number; lng: number };
+  center?: { lat: number; lng: number }; // Changed from defaultCenter, now fully controlled
   defaultZoom?: number;
 }
 
-export function MapDisplay({ gates, defaultCenter, defaultZoom = 12 }: MapDisplayProps) {
+export function MapDisplay({ gates, center: centerProp, defaultZoom = 12 }: MapDisplayProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
+  // mapCenter internal state will sync with centerProp
+  const [mapCenter, setMapCenter] = useState(centerProp); 
 
   useEffect(() => {
     // Ensure this only runs on the client
     setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || null);
-    if (!defaultCenter && gates.length > 0) {
+  }, []);
+
+  useEffect(() => {
+    // Update internal mapCenter when centerProp changes
+    if (centerProp) {
+      setMapCenter(centerProp);
+    } else if (gates.length > 0) {
+      // Fallback to first gate if centerProp is not provided
       setMapCenter({ lat: gates[0].latitude, lng: gates[0].longitude });
-    } else if (defaultCenter) {
-      setMapCenter(defaultCenter);
     } else {
-      // Default to a generic location if no gates and no default center
+      // Ultimate fallback if no centerProp and no gates
       setMapCenter({ lat: 37.7749, lng: -122.4194 });
     }
-  }, [gates, defaultCenter]);
+  }, [centerProp, gates]);
 
   if (!apiKey) {
     return (
@@ -48,8 +55,8 @@ export function MapDisplay({ gates, defaultCenter, defaultZoom = 12 }: MapDispla
     <APIProvider apiKey={apiKey}>
       <div style={{ height: '500px', width: '100%' }} className="rounded-lg overflow-hidden shadow-lg">
         <Map
-          defaultCenter={mapCenter}
-          defaultZoom={defaultZoom}
+          center={mapCenter} // Use controlled 'center' prop
+          zoom={defaultZoom} // Use 'zoom' not 'defaultZoom' if you want it controlled too, or keep 'defaultZoom' for initial
           gestureHandling={'greedy'}
           disableDefaultUI={true}
           mapId="railwatch-map"

@@ -9,11 +9,11 @@ import { AlertSettingsPanel } from '@/components/dashboard/alert-settings-panel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { RailwayGate } from '@/types';
-import { LayoutDashboard, Bot, BellRing, Search as SearchIcon } from 'lucide-react'; // Added SearchIcon
-import { useState, type ChangeEvent } from 'react'; // Added useState and ChangeEvent
-import { Input } from '@/components/ui/input'; // Added Input
-import { Button } from '@/components/ui/button'; // Added Button
-import { GateListItem } from '@/components/dashboard/gate-list-item'; // Added GateListItem for search results display
+import { LayoutDashboard, Bot, BellRing, Search as SearchIcon } from 'lucide-react';
+import { useState, type ChangeEvent, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { GateListItem } from '@/components/dashboard/gate-list-item';
 
 // Mock data for railway gates
 const mockGates: RailwayGate[] = [
@@ -23,8 +23,8 @@ const mockGates: RailwayGate[] = [
   { id: 'gate4', name: 'Pine St. Rail Access', latitude: 37.7850, longitude: -122.4050, status: 'open', estimatedWaitTime: 'N/A' },
 ];
 
-// Determine default map center. If gates exist, center on the first gate. Otherwise, use a default.
-const defaultMapCenter = mockGates.length > 0 
+// Determine initial map center. If gates exist, center on the first gate. Otherwise, use a default.
+const initialMapCenter = mockGates.length > 0 
   ? { lat: mockGates[0].latitude, lng: mockGates[0].longitude }
   : { lat: 37.7749, lng: -122.4194 }; // Default to San Francisco if no gates
 
@@ -32,12 +32,15 @@ export default function RailWatchDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [destinationResults, setDestinationResults] = useState<RailwayGate[]>([]);
   const [searchAttempted, setSearchAttempted] = useState(false);
+  const [mapViewCenter, setMapViewCenter] = useState(initialMapCenter);
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(event.target.value);
-    if (!event.target.value.trim()) {
+    const query = event.target.value;
+    setSearchQuery(query);
+    if (!query.trim()) {
       setDestinationResults([]);
       setSearchAttempted(false);
+      setMapViewCenter(initialMapCenter);
     }
   };
 
@@ -45,6 +48,7 @@ export default function RailWatchDashboard() {
     setSearchAttempted(true);
     if (!searchQuery.trim()) {
       setDestinationResults([]);
+      setMapViewCenter(initialMapCenter);
       return;
     }
     const lowerCaseQuery = searchQuery.toLowerCase();
@@ -57,8 +61,10 @@ export default function RailWatchDashboard() {
         results.push(mockGates[foundGateIndex + 1]);
       }
       setDestinationResults(results);
+      setMapViewCenter({ lat: results[0].latitude, lng: results[0].longitude });
     } else {
       setDestinationResults([]);
+      setMapViewCenter(initialMapCenter);
     }
   };
 
@@ -137,7 +143,7 @@ export default function RailWatchDashboard() {
                     <CardDescription>Visual overview of railway gate statuses and locations.</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <MapDisplay gates={mockGates} defaultCenter={defaultMapCenter} />
+                    <MapDisplay gates={mockGates} center={mapViewCenter} />
                   </CardContent>
                 </Card>
               </div>
