@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -14,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
+// Schema for the user-fillable form fields
 const formSchema = z.object({
   crossingId: z.string().min(1, "Crossing ID is required"),
   trainSchedule: z.string().min(1, "Train schedule is required"),
@@ -41,8 +43,19 @@ export function AiWaitTimePredictor() {
     setIsLoading(true);
     setPredictionResult(null);
     setError(null);
+
+    const now = new Date();
+    const currentDayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const currentTimeOfDay = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const predictionInput: PredictWaitTimeInput = {
+      ...data,
+      currentDayOfWeek,
+      currentTimeOfDay,
+    };
+
     try {
-      const result = await predictWaitTime(data as PredictWaitTimeInput);
+      const result = await predictWaitTime(predictionInput);
       setPredictionResult(result);
       toast({
         title: "Prediction Successful",
@@ -67,7 +80,7 @@ export function AiWaitTimePredictor() {
       <CardHeader>
         <CardTitle className="font-headline">AI Wait Time Predictor</CardTitle>
         <CardDescription>
-          Enter railway crossing details to get an AI-powered wait time estimation.
+          Enter railway crossing details, and the AI will use current time and day context to estimate wait time.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
