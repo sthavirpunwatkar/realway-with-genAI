@@ -5,12 +5,12 @@ import { AppHeader } from '@/components/layout/header';
 import { MapDisplay } from '@/components/dashboard/map-display';
 import { GateList } from '@/components/dashboard/gate-list';
 import { AiWaitTimePredictor } from '@/components/dashboard/ai-wait-time-predictor';
-import { NearbyPlacesPanel } from '@/components/dashboard/nearby-places-panel'; // Changed
+import { NearbyPlacesPanel } from '@/components/dashboard/nearby-places-panel';
 import { OtpDialog } from '@/components/auth/otp-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { RailwayGate } from '@/types';
-import { LayoutDashboard, Bot, MapPin as NearbyIcon, Search as SearchIcon } from 'lucide-react'; // Changed BellRing to MapPin as NearbyIcon
+import { LayoutDashboard, Bot, MapPin as NearbyIconLucide, Search as SearchIcon } from 'lucide-react';
 import { useState, type ChangeEvent, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -183,8 +183,8 @@ export default function RailWatchDashboard() {
             <TabsTrigger value="predict" className="font-medium text-sm py-2.5">
               <Bot className="mr-2 h-4 w-4" /> AI Predictor
             </TabsTrigger>
-            <TabsTrigger value="nearby" className="font-medium text-sm py-2.5"> {/* Changed value and text */}
-              <NearbyIcon className="mr-2 h-4 w-4" /> Nearby Places {/* Changed text and icon */}
+            <TabsTrigger value="nearby" className="font-medium text-sm py-2.5">
+              <NearbyIconLucide className="mr-2 h-4 w-4" /> Nearby Places
             </TabsTrigger>
           </TabsList>
 
@@ -219,8 +219,8 @@ export default function RailWatchDashboard() {
             <AiWaitTimePredictor />
           </TabsContent>
 
-          <TabsContent value="nearby"> {/* Changed value */}
-            <NearbyPlacesPanel /> {/* Changed component */}
+          <TabsContent value="nearby">
+            <NearbyPlacesPanel />
           </TabsContent>
         </Tabs>
       </main>
