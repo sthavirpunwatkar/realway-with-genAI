@@ -46,13 +46,15 @@ export function OtpDialog({ open, onOpenChange, onOtpVerified, gateName }: OtpDi
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
-  const auth = getFirebaseAuth();
+  const auth = getFirebaseAuth(); // Get auth instance
 
   useEffect(() => {
-    if (open && !window.recaptchaVerifier && auth && recaptchaContainerRef.current) {
-      // Ensure the container is empty before creating a new verifier
-      recaptchaContainerRef.current.innerHTML = '';
-      const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+    const currentRecaptchaDiv = recaptchaContainerRef.current;
+    const currentAuth = auth; // Use the auth instance from component scope
+
+    if (open && !window.recaptchaVerifier && currentAuth && currentRecaptchaDiv) {
+      currentRecaptchaDiv.innerHTML = ''; // Clear container before new verifier
+      const verifier = new RecaptchaVerifier(currentAuth, currentRecaptchaDiv, {
         size: 'invisible',
         callback: () => {
           // reCAPTCHA solved, allow signInWithPhoneNumber.
@@ -64,15 +66,32 @@ export function OtpDialog({ open, onOpenChange, onOtpVerified, gateName }: OtpDi
             variant: 'destructive',
           });
           window.recaptchaVerifier?.clear(); // Attempt to clear/reset
-          // Re-initialize if needed, or guide user to retry
-           if (recaptchaContainerRef.current) recaptchaContainerRef.current.innerHTML = ''; // Clear container
-            window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: 'invisible' });
 
+          const nodeInExpiredCb = recaptchaContainerRef.current;
+          const authInExpiredCb = getFirebaseAuth(); // Re-fetch or ensure auth is valid
+
+          if (nodeInExpiredCb) {
+            nodeInExpiredCb.innerHTML = ''; // Clear container
+            if (authInExpiredCb) {
+              try {
+                window.recaptchaVerifier = new RecaptchaVerifier(authInExpiredCb, nodeInExpiredCb, { size: 'invisible' });
+                 setError('reCAPTCHA session expired. Please try sending OTP again.');
+                 setStep('phoneNumber'); // Guide user back
+              } catch (e) {
+                 console.error("Error re-initializing RecaptchaVerifier in expired-callback:", e);
+                 setError('Failed to reset reCAPTCHA. Please try sending OTP again.');
+              }
+            } else {
+              setError("Authentication service became unavailable. Please close and try again.");
+            }
+           } else {
+             setError("reCAPTCHA expired but dialog is in an unstable state. Please try sending OTP again.");
+           }
         },
       });
       window.recaptchaVerifier = verifier;
     }
-  }, [open, auth, toast]);
+  }, [open, auth, toast]); // auth is stable if getFirebaseAuth() is robust
 
   const handleSendOtp = async () => {
     if (!phoneNumber.match(/^\+[1-9]\d{1,14}$/)) {
@@ -82,12 +101,21 @@ export function OtpDialog({ open, onOpenChange, onOtpVerified, gateName }: OtpDi
     setError(null);
     setIsLoading(true);
 
+    const currentAuth = auth; // Use auth from component scope
+
     try {
       if (!window.recaptchaVerifier) {
-        throw new Error('RecaptchaVerifier not initialized.');
+        // Attempt to re-initialize if verifier is missing and dialog is open
+        const currentRecaptchaDivForSend = recaptchaContainerRef.current;
+        if (open && currentAuth && currentRecaptchaDivForSend) {
+            currentRecaptchaDivForSend.innerHTML = '';
+            window.recaptchaVerifier = new RecaptchaVerifier(currentAuth, currentRecaptchaDivForSend, {size: 'invisible'});
+        } else {
+            throw new Error('RecaptchaVerifier not initialized and cannot be re-initialized.');
+        }
       }
       const confirmationResult = await signInWithPhoneNumber(
-        auth,
+        currentAuth, // Use currentAuth
         phoneNumber,
         window.recaptchaVerifier
       );
@@ -108,9 +136,22 @@ export function OtpDialog({ open, onOpenChange, onOtpVerified, gateName }: OtpDi
       });
        // Reset reCAPTCHA on failure to allow retry
       window.recaptchaVerifier?.clear();
-      if (recaptchaContainerRef.current) recaptchaContainerRef.current.innerHTML = '';
-      if (auth && recaptchaContainerRef.current) {
-         window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: 'invisible' });
+      const nodeInErrorCb = recaptchaContainerRef.current;
+      const authInErrorCb = getFirebaseAuth(); // Re-fetch or ensure auth is valid
+
+      if (nodeInErrorCb) {
+        nodeInErrorCb.innerHTML = '';
+        if (authInErrorCb) {
+          try {
+            window.recaptchaVerifier = new RecaptchaVerifier(authInErrorCb, nodeInErrorCb, { size: 'invisible' });
+          } catch (e) {
+            console.error("Error re-initializing RecaptchaVerifier in sendOtp error handling:", e);
+            // setError is already set from the primary error, avoid overwriting with a less specific one.
+          }
+        } else {
+           // If auth became unavailable, update the error message
+           setError("Authentication service issue during OTP sending. Please try again.");
+        }
       }
     } finally {
       setIsLoading(false);
@@ -158,13 +199,17 @@ export function OtpDialog({ open, onOpenChange, onOtpVerified, gateName }: OtpDi
     setStep('phoneNumber');
     setError(null);
     setIsLoading(false);
-    // It's good practice to clear the verifier if it's tied to the dialog instance lifecycle
+    
     window.recaptchaVerifier?.clear();
-    if(recaptchaContainerRef.current) {
-        recaptchaContainerRef.current.innerHTML = ''; // Clear the div
+    const nodeOnClose = recaptchaContainerRef.current;
+    if(nodeOnClose) {
+        nodeOnClose.innerHTML = ''; // Clear the div
     }
-    delete window.recaptchaVerifier;
-    delete window.confirmationResult;
+    // Delete global references to ensure clean state for next dialog opening
+    if (typeof window !== 'undefined') {
+        delete (window as any).recaptchaVerifier;
+        delete (window as any).confirmationResult;
+    }
   };
 
 
