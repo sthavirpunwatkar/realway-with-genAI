@@ -6,6 +6,7 @@ import { MapDisplay } from '@/components/dashboard/map-display';
 import { GateList } from '@/components/dashboard/gate-list';
 import { AiWaitTimePredictor } from '@/components/dashboard/ai-wait-time-predictor';
 import { AlertSettingsPanel } from '@/components/dashboard/alert-settings-panel';
+import { OtpDialog } from '@/components/auth/otp-dialog'; // Added
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { RailwayGate } from '@/types';
@@ -16,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { GateListItem } from '@/components/dashboard/gate-list-item';
 import { useToast } from "@/hooks/use-toast";
 
-// Initial mock data for railway gates
 const mockGatesInitial: RailwayGate[] = [
   { id: 'gate1', name: 'Main Street Crossing', latitude: 37.7749, longitude: -122.4194, status: 'closed', estimatedWaitTime: '8 min' },
   { id: 'gate2', name: 'Elm Avenue Gate', latitude: 37.7790, longitude: -122.4290, status: 'open', estimatedWaitTime: 'N/A' },
@@ -24,10 +24,9 @@ const mockGatesInitial: RailwayGate[] = [
   { id: 'gate4', name: 'Pine St. Rail Access', latitude: 37.7850, longitude: -122.4050, status: 'open', estimatedWaitTime: 'N/A' },
 ];
 
-// Determine initial map center. If gates exist, center on the first gate. Otherwise, use a default.
 const initialMapFallbackCenter = mockGatesInitial.length > 0
   ? { lat: mockGatesInitial[0].latitude, lng: mockGatesInitial[0].longitude }
-  : { lat: 37.7749, lng: -122.4194 }; // Default to San Francisco if no gates
+  : { lat: 37.7749, lng: -122.4194 };
 
 export default function RailWatchDashboard() {
   const [mockGatesData, setMockGatesData] = useState<RailwayGate[]>(mockGatesInitial);
@@ -36,6 +35,12 @@ export default function RailWatchDashboard() {
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [mapViewCenter, setMapViewCenter] = useState(initialMapFallbackCenter);
   const { toast } = useToast();
+
+  // OTP Dialog state
+  const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
+  const [gateIdToToggle, setGateIdToToggle] = useState<string | null>(null);
+  const [gateNameToToggle, setGateNameToToggle] = useState<string | null>(null);
+
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;
@@ -76,13 +81,26 @@ export default function RailWatchDashboard() {
     performSearch();
   };
 
-  const handleToggleStatus = (gateId: string) => {
+  // This function is called by GateListItem to initiate the OTP flow
+  const initiateToggleStatusWithOtp = (gateId: string) => {
+    const gate = mockGatesData.find(g => g.id === gateId);
+    if (gate) {
+      setGateIdToToggle(gateId);
+      setGateNameToToggle(gate.name)
+      setIsOtpDialogOpen(true);
+    }
+  };
+
+  // This function is called after successful OTP verification
+  const executeToggleStatus = () => {
+    if (!gateIdToToggle) return;
+
     let toggledGateName = '';
-    let newStatus: 'open' | 'closed' = 'open'; // Initialize with a default
+    let newStatus: 'open' | 'closed' = 'open';
 
     setMockGatesData(prevGates =>
       prevGates.map(gate => {
-        if (gate.id === gateId) {
+        if (gate.id === gateIdToToggle) {
           toggledGateName = gate.name;
           newStatus = gate.status === 'open' ? 'closed' : 'open';
           return { ...gate, status: newStatus };
@@ -93,35 +111,13 @@ export default function RailWatchDashboard() {
 
     setDestinationResults(prevResults =>
       prevResults.map(gate => {
-        if (gate.id === gateId) {
-          // Ensure newStatus is correctly captured from the main data update logic
-          // This requires newStatus to be in scope or re-calculated
-          const originalGate = mockGatesData.find(g => g.id === gateId);
-          const currentStatusInMainData = originalGate ? originalGate.status : gate.status;
-          // The status in prevResults might be stale if mockGatesData was updated first.
-          // It's safer to re-derive the new status based on the *intended* toggle logic.
-          const statusAfterToggle = currentStatusInMainData === 'open' ? (newStatus === 'open' ? 'closed' : 'open') : (newStatus === 'closed' ? 'open' : 'closed');
-
-          // If the newStatus from above (derived from setMockGatesData's closure) is what we just set, use it.
-          // This logic can be tricky due to closures. The simplest is to just flip current destinationResults gate status.
+        if (gate.id === gateIdToToggle) {
            const updatedStatusForDest = gate.status === 'open' ? 'closed' : 'open';
           return { ...gate, status: updatedStatusForDest };
         }
         return gate;
       })
     );
-    
-    // Re-run search if the toggled gate was part of the search to ensure consistency,
-    // especially if `newStatus` from the `setMockGatesData` closure isn't perfectly synced.
-    // This is a bit heavy-handed but ensures consistency.
-    if (destinationResults.some(g => g.id === gateId)) {
-        // We need to ensure the newStatus is correctly determined *after* setMockGatesData's update has been processed.
-        // The `newStatus` in this scope might be from the *previous* state if not careful.
-        // To get the *actual* new status for the toast, find the gate in the *next* state.
-        // However, state updates are async. So, we rely on the `newStatus` captured during the map.
-        // This is a common React challenge. The `newStatus` variable from `setMockGatesData` is correct.
-    }
-
 
     if (toggledGateName && newStatus) {
       toast({
@@ -130,6 +126,9 @@ export default function RailWatchDashboard() {
         variant: "default",
       });
     }
+    // Reset OTP related state
+    setGateIdToToggle(null);
+    setGateNameToToggle(null);
   };
 
 
@@ -173,7 +172,7 @@ export default function RailWatchDashboard() {
             <CardContent>
               <div className="space-y-4">
                 {destinationResults.map((gate) => (
-                  <GateListItem key={`${gate.id}-search`} gate={gate} onToggleStatus={handleToggleStatus} />
+                  <GateListItem key={`${gate.id}-search`} gate={gate} onToggleStatus={initiateToggleStatusWithOtp} />
                 ))}
               </div>
             </CardContent>
@@ -213,7 +212,7 @@ export default function RailWatchDashboard() {
                     <CardDescription>Current status and estimated wait times for monitored gates.</CardDescription>
                   </CardHeader>
                   <CardContent className="max-h-[450px] overflow-y-auto pr-2">
-                    <GateList gates={mockGatesData} onToggleStatus={handleToggleStatus} />
+                    <GateList gates={mockGatesData} onToggleStatus={initiateToggleStatusWithOtp} />
                   </CardContent>
                 </Card>
               </div>
@@ -232,6 +231,12 @@ export default function RailWatchDashboard() {
       <footer className="text-center py-4 text-sm text-muted-foreground border-t">
         © {new Date().getFullYear()} RailWatch. All rights reserved.
       </footer>
+      <OtpDialog
+        open={isOtpDialogOpen}
+        onOpenChange={setIsOtpDialogOpen}
+        onOtpVerified={executeToggleStatus}
+        gateName={gateNameToToggle}
+      />
     </div>
   );
 }
