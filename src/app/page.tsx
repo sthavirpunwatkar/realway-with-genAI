@@ -5,12 +5,12 @@ import { AppHeader } from '@/components/layout/header';
 import { MapDisplay } from '@/components/dashboard/map-display';
 import { GateList } from '@/components/dashboard/gate-list';
 import { AiWaitTimePredictor } from '@/components/dashboard/ai-wait-time-predictor';
-import { AlertSettingsPanel } from '@/components/dashboard/alert-settings-panel';
-import { OtpDialog } from '@/components/auth/otp-dialog'; // Added
+import { NearbyPlacesPanel } from '@/components/dashboard/nearby-places-panel'; // Changed
+import { OtpDialog } from '@/components/auth/otp-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { RailwayGate } from '@/types';
-import { LayoutDashboard, Bot, BellRing, Search as SearchIcon } from 'lucide-react';
+import { LayoutDashboard, Bot, MapPin as NearbyIcon, Search as SearchIcon } from 'lucide-react'; // Changed BellRing to MapPin as NearbyIcon
 import { useState, type ChangeEvent, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,6 @@ export default function RailWatchDashboard() {
   const [mapViewCenter, setMapViewCenter] = useState(initialMapFallbackCenter);
   const { toast } = useToast();
 
-  // OTP Dialog state
   const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
   const [gateIdToToggle, setGateIdToToggle] = useState<string | null>(null);
   const [gateNameToToggle, setGateNameToToggle] = useState<string | null>(null);
@@ -81,7 +80,6 @@ export default function RailWatchDashboard() {
     performSearch();
   };
 
-  // This function is called by GateListItem to initiate the OTP flow
   const initiateToggleStatusWithOtp = (gateId: string) => {
     const gate = mockGatesData.find(g => g.id === gateId);
     if (gate) {
@@ -91,7 +89,6 @@ export default function RailWatchDashboard() {
     }
   };
 
-  // This function is called after successful OTP verification
   const executeToggleStatus = () => {
     if (!gateIdToToggle) return;
 
@@ -126,7 +123,6 @@ export default function RailWatchDashboard() {
         variant: "default",
       });
     }
-    // Reset OTP related state
     setGateIdToToggle(null);
     setGateNameToToggle(null);
   };
@@ -187,8 +183,8 @@ export default function RailWatchDashboard() {
             <TabsTrigger value="predict" className="font-medium text-sm py-2.5">
               <Bot className="mr-2 h-4 w-4" /> AI Predictor
             </TabsTrigger>
-            <TabsTrigger value="alerts" className="font-medium text-sm py-2.5">
-              <BellRing className="mr-2 h-4 w-4" /> Alert Settings
+            <TabsTrigger value="nearby" className="font-medium text-sm py-2.5"> {/* Changed value and text */}
+              <NearbyIcon className="mr-2 h-4 w-4" /> Nearby Places {/* Changed text and icon */}
             </TabsTrigger>
           </TabsList>
 
@@ -223,8 +219,8 @@ export default function RailWatchDashboard() {
             <AiWaitTimePredictor />
           </TabsContent>
 
-          <TabsContent value="alerts">
-            <AlertSettingsPanel />
+          <TabsContent value="nearby"> {/* Changed value */}
+            <NearbyPlacesPanel /> {/* Changed component */}
           </TabsContent>
         </Tabs>
       </main>
