@@ -1,3 +1,6 @@
+
+"use client";
+
 import { AppHeader } from '@/components/layout/header';
 import { MapDisplay } from '@/components/dashboard/map-display';
 import { GateList } from '@/components/dashboard/gate-list';
@@ -6,7 +9,11 @@ import { AlertSettingsPanel } from '@/components/dashboard/alert-settings-panel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { RailwayGate } from '@/types';
-import { LayoutDashboard, Bot, BellRing } from 'lucide-react';
+import { LayoutDashboard, Bot, BellRing, Search as SearchIcon } from 'lucide-react'; // Added SearchIcon
+import { useState, type ChangeEvent } from 'react'; // Added useState and ChangeEvent
+import { Input } from '@/components/ui/input'; // Added Input
+import { Button } from '@/components/ui/button'; // Added Button
+import { GateListItem } from '@/components/dashboard/gate-list-item'; // Added GateListItem for search results display
 
 // Mock data for railway gates
 const mockGates: RailwayGate[] = [
@@ -22,10 +29,92 @@ const defaultMapCenter = mockGates.length > 0
   : { lat: 37.7749, lng: -122.4194 }; // Default to San Francisco if no gates
 
 export default function RailWatchDashboard() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [destinationResults, setDestinationResults] = useState<RailwayGate[]>([]);
+  const [searchAttempted, setSearchAttempted] = useState(false);
+
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+    if (!event.target.value.trim()) {
+      setDestinationResults([]);
+      setSearchAttempted(false);
+    }
+  };
+
+  const performSearch = () => {
+    setSearchAttempted(true);
+    if (!searchQuery.trim()) {
+      setDestinationResults([]);
+      return;
+    }
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    const foundGateIndex = mockGates.findIndex(gate => gate.name.toLowerCase().includes(lowerCaseQuery));
+
+    if (foundGateIndex !== -1) {
+      const results: RailwayGate[] = [];
+      results.push(mockGates[foundGateIndex]);
+      if (foundGateIndex + 1 < mockGates.length) {
+        results.push(mockGates[foundGateIndex + 1]);
+      }
+      setDestinationResults(results);
+    } else {
+      setDestinationResults([]);
+    }
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    performSearch();
+  };
+
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <form onSubmit={handleSearchSubmit} className="mb-6 flex gap-2 items-center">
+          <Input
+            type="search"
+            placeholder="Search for a railway crossing (e.g., Main Street)"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="flex-grow shadow-sm"
+            aria-label="Search Destination"
+          />
+          <Button type="submit" className="shadow-sm">
+            <SearchIcon className="mr-2 h-4 w-4" /> Search
+          </Button>
+        </form>
+
+        {searchAttempted && destinationResults.length === 0 && searchQuery.trim() !== "" && (
+          <Card className="mb-6 shadow-lg bg-card">
+            <CardHeader>
+              <CardTitle className="font-headline">Search Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">No railway crossings found matching your search for "{searchQuery}".</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {destinationResults.length > 0 && (
+          <Card className="mb-6 shadow-lg bg-card">
+            <CardHeader>
+              <CardTitle className="font-headline">Route Gates Near Destination</CardTitle>
+              <CardDescription>
+                Showing the searched gate and the next one on its route.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {destinationResults.map((gate) => (
+                  <GateListItem key={`${gate.id}-search`} gate={gate} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-6 shadow-sm">
             <TabsTrigger value="overview" className="font-medium text-sm py-2.5">
